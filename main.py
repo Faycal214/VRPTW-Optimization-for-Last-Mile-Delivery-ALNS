@@ -15,10 +15,6 @@ def main() -> None:
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--seed", type=int, default=42)
 
-    parser.add_argument("--no_results_csv", action="store_true")
-    parser.add_argument("--no_submission_csv", action="store_true")
-    parser.add_argument("--no_instance_json", action="store_true")
-
     parser.add_argument("--baseline_only", action="store_true")
     parser.add_argument("--alns_iterations", type=int, default=30)
 
@@ -43,8 +39,9 @@ def main() -> None:
     config = ExperimentConfig(
         instances_dir=args.instances_dir,
         output_dir=args.output_dir,
-        seed=args.seed,
         alns_iterations=args.alns_iterations,
+        seed=args.seed,
+        use_baseline_only=args.baseline_only,
     )
 
     summary = run_experiments(config)
@@ -54,6 +51,8 @@ def main() -> None:
     print(f"Mean objective: {summary.mean_objective:.4f}", flush=True)
     print(f"Mean total distance: {summary.mean_total_distance:.4f}", flush=True)
     print(f"Mean total time: {summary.mean_total_time:.4f}", flush=True)
+    print(f"Summary CSV: {summary.summary_csv_path}", flush=True)
+    print(f"Output folder: {summary.output_dir}", flush=True)
     print("=========================", flush=True)
 
 

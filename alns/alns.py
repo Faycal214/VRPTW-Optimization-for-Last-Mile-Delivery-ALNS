@@ -1,34 +1,16 @@
-"""Full ALNS driver for VRPTW.
-
-This version uses the full helper stack:
-- alns.destroy
-- alns.repair
-- alns.weights
-- alns.acceptance
-- core.constraints
-- core.evaluation
-
-It is the stronger but heavier version of the solver.
-"""
+"""Full ALNS driver with learned operator selection for VRPTW."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
 import random
 
-from alns.acceptance import (
-    AcceptanceState,
-    accept_candidate,
-    initialize_acceptance_state,
-)
+from alns.acceptance import AcceptanceState, accept_candidate, initialize_acceptance_state
 from alns.destroy import destroy_solution
 from alns.repair import repair_solution
-from alns.weights import (
-    AdaptiveWeights,
-    initialize_default_weights,
-    update_weights_by_outcome,
-)
+from alns.weights import LearnedWeights, initialize_learned_weights, update_weights_by_outcome
 from core.constraints import check_solution_feasibility
 from core.evaluation import compute_distance_matrix, compute_objective
 from core.model import Route, Solution
@@ -37,12 +19,15 @@ from core.parser import VRPTWInstance
 
 @dataclass
 class ALNSConfig:
-    max_iterations: int = 1000
+    max_iterations: int = 100
     min_remove: int = 5
     max_remove: int = 35
     initial_temperature: float = 100.0
     cooling_rate: float = 0.995
     seed: int = 42
+    policy_path: str = "outputs/policy/learned_weights.json"
+    load_policy: bool = True
+    save_policy: bool = True
 
 
 @dataclass
@@ -51,30 +36,18 @@ class ALNSResult:
     current_solution: Solution
     iterations: int
     acceptance_state: AcceptanceState
-    weights: AdaptiveWeights
+    weights: LearnedWeights
     history: List[float]
-
 
 
 def _solution_to_routes(solution: Solution) -> List[List[int]]:
     return [route.path for route in solution.active_routes()]
 
 
-def _routes_to_solution(routes: List[List[int]]) -> Solution:
-    sol = Solution()
-    for route in routes:
-        sol.routes.append(Route(path=list(route)))
-    return sol
-
-
-def _evaluate_solution(
-    solution: Solution,
-    instance: VRPTWInstance,
-    distance_matrix: List[List[float]],
-) -> Tuple[bool, float]:
-    """Strict evaluation: feasibility first, then objective."""
+def _evaluate_solution(solution: Solution, instance: VRPTWInstance, distance_matrix: List[List[float]]) -> Tuple[bool, float]:
     routes = _solution_to_routes(solution)
     feasibility = check_solution_feasibility(routes, instance, distance_matrix)
+
     if not feasibility.feasible:
         solution.feasible = False
         solution.objective = float("inf")
@@ -91,17 +64,7 @@ def _evaluate_solution(
     return True, objective
 
 
-
-def _initialize_current_solution(
-    solution: Solution,
-    instance: VRPTWInstance,
-    distance_matrix: List[List[float]],
-) -> Solution:
-    """Initialize the starting solution.
-
-    Unlike the previous version, this does not abort if the initial solution is
-    infeasible. The search can still continue and try to repair/improve it.
-    """
+def _initialize_current_solution(solution: Solution, instance: VRPTWInstance, distance_matrix: List[List[float]]) -> Solution:
     cloned = solution.copy()
     feasible, _ = _evaluate_solution(cloned, instance, distance_matrix)
     if not feasible:
@@ -109,16 +72,14 @@ def _initialize_current_solution(
     return cloned
 
 
-
 def run_alns(
     instance: VRPTWInstance,
     initial_solution: Solution,
     distance_matrix: Optional[List[List[float]]] = None,
-    max_iterations: int = 1000,
+    max_iterations: int = 100,
     seed: int = 42,
     config: Optional[ALNSConfig] = None,
 ) -> Solution:
-    """Run the full ALNS optimization loop and return the best solution found."""
     rng = random.Random(seed)
 
     if distance_matrix is None:
@@ -130,7 +91,11 @@ def run_alns(
         config.max_iterations = max_iterations
         config.seed = seed
 
-    weights = initialize_default_weights()
+    if config.load_policy and Path(config.policy_path).exists():
+        weights = LearnedWeights.load(config.policy_path)
+    else:
+        weights = initialize_learned_weights()
+
     acceptance = initialize_acceptance_state(
         initial_temperature=config.initial_temperature,
         cooling_rate=config.cooling_rate,
@@ -168,9 +133,7 @@ def run_alns(
         feasible, candidate_objective = _evaluate_solution(candidate, instance, distance_matrix)
 
         if not feasible:
-            # Penalize the operators and move on.
-            weights.decay_destroy(destroy_name, penalty=0.05)
-            weights.decay_repair(repair_name, penalty=0.05)
+            weights.penalize(destroy_name, repair_name, penalty=0.15)
             acceptance.cool()
             history.append(best.objective)
             continue
@@ -204,7 +167,11 @@ def run_alns(
     best.metadata["alns_history"] = history
     best.metadata["operator_weights"] = weights.report()
     best.metadata["iterations"] = config.max_iterations
-    best.metadata["mode"] = "full_alns"
+    best.metadata["mode"] = "learned_alns"
+
+    if config.save_policy:
+        weights.save(config.policy_path)
+
     return best
 
 
