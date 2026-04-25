@@ -1,7 +1,0 @@
-family,best_instance,best_objective,best_routes,worst_instance,worst_objective,worst_routes
-Clustered_large,Clustered_large_200_4,9520.650276300046,7,Clustered_large_200_6,14484.71826823211,9
-Clustered_tight,Clustered_tight_200_3,9136.43803277873,20,Clustered_tight_200_2,9909.445846319812,22
-Random_large,Random_large_200_10,6117.982911595493,6,Random_large_200_12,26288.266753336688,6
-Random_tight,Random_tight_200_8,5119.631565305168,19,Random_tight_200_7,6828.533269272939,26
-Mixed_large,Mixed_large_200_17,10221.16219729982,8,Mixed_large_200_18,13080.287820613235,10
-Mixed_tight,Mixed_tight_200_13,4448.355297159587,19,Mixed_tight_200_14,4676.73114670984,19
