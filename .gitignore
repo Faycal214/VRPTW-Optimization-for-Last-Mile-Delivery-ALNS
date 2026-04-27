@@ -1,5 +1,5 @@
 # =========================
-# DATA (never push datasets)
+# DATA
 # =========================
 data/
 datasets/
@@ -10,6 +10,7 @@ datasets/
 # =========================
 outputs/
 results/
+analysis_outputs/
 *.json
 *.log
 
@@ -32,6 +33,7 @@ __pycache__/
 # ENV
 # =========================
 venv/
+.venv/
 .env
 
 # =========================
@@ -39,3 +41,9 @@ venv/
 # =========================
 .DS_Store
 Thumbs.db
+
+# =========================
+# EDITORS
+# =========================
+.vscode/
+.idea/
