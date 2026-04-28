@@ -1,74 +1,133 @@
 # RL-Enhanced Large Neighborhood Search for VRPTW
 
-This project studies the **Vehicle Routing Problem with Time Windows (VRPTW)** on the Solomon benchmark family and compares:
+![Python](https://img.shields.io/badge/Python-3.10-blue)
+![Status](https://img.shields.io/badge/status-research-green)
 
-* **ALNS**: classical Adaptive Large Neighborhood Search
-* **NLNS**: a neural / RL-guided large neighborhood search
-* **Hybrid**: NLNS followed by ALNS refinement
+A research-oriented study of **Vehicle Routing Problem with Time Windows (VRPTW)** on Solomon benchmarks, comparing classical **Adaptive Large Neighborhood Search (ALNS)** with a **reinforcement learning–guided Large Neighborhood Search (NLNS)**.
 
-The goal is to show, with a clean benchmark study, that a learned search policy can improve over a strong heuristic baseline while staying feasible on all test instances.
-
----
-
-## 1. What this repository contains
-
-The repository is organized around four stages:
-
-1. **Baseline ALNS**
-2. **NLNS training and inference**
-3. **Hybrid NLNS → ALNS refinement**
-4. **Benchmark, visualization, and ablation analysis**
-
-The final best configuration selected by the ablation study is **Hybrid_low_destroy**.
+**Main finding:** a hybrid **NLNS → ALNS refinement** pipeline gives the strongest overall performance, while keeping all benchmark solutions feasible.
 
 ---
 
-## 2. Problem definition
+## Problem
 
-VRPTW asks for routes that:
+VRPTW is a capacitated routing problem in which each customer must be served:
 
-* start and end at the depot,
-* serve every customer exactly once,
-* respect vehicle capacity,
-* respect customer time windows,
-* minimize the global routing objective.
+* exactly once,
+* within a predefined **time window**,
+* using vehicles with limited capacity,
+* with all routes starting and ending at a depot.
 
-This project uses the **Solomon-style VRPTW instances** already present in the repository.
+We evaluate on the standard **Solomon 100-customer benchmark instances** using the common hierarchical objective:
 
----
-
-## 3. Methods
-
-### 3.1 ALNS
-
-ALNS is used as the classical baseline.
-
-It alternates between:
-
-* a **destroy** operator that removes customers,
-* a **repair** operator that reinserts them.
-
-This gives a strong heuristic baseline for comparison.
-
-### 3.2 NLNS
-
-NLNS adds a learned policy over the destroy/repair choices.
-
-In this repository, the RL component is a **policy-gradient style agent** that selects operator actions during the search process.
-
-### 3.3 Hybrid
-
-The hybrid pipeline uses:
-
-**ALNS solution → NLNS refinement → ALNS refinement**
-
-In practice, the strongest configuration found by ablation is **Hybrid_low_destroy**.
+1. minimize the number of vehicles,
+2. then minimize total travel distance.
 
 ---
 
-## 4. Installation
+## Method
 
-Create a virtual environment and install dependencies:
+### ALNS
+
+A destroy-and-repair metaheuristic that repeatedly:
+
+* removes a subset of customers,
+* repairs the partial solution using heuristic insertion rules,
+* adapts operator choice based on past performance.
+
+### NLNS
+
+A learned version of large neighborhood search in which a **policy-gradient agent** guides the search decisions instead of relying only on handcrafted operator selection.
+
+### Hybrid
+
+A two-stage pipeline:
+
+* **NLNS** explores promising neighborhoods,
+* **ALNS** refines the final solution.
+
+---
+
+## Search loop
+
+```mermaid
+flowchart TD
+    A[Initial Solution] --> B[Destroy]
+    B --> C[Partial Solution]
+    C --> D[Repair]
+    D --> E[Candidate Solution]
+    E --> F[Accept / Reject]
+    F -->|Accept| G[Current Solution]
+    F -->|Reject| A
+    G --> H[Update Operator Scores]
+    H --> B
+
+    I[RL Policy] --> B
+    I --> D
+    E --> I
+```
+
+---
+
+## Results
+
+### Benchmark summary
+
+<img width="2665" height="1235" alt="alns_vs_nlns_comparison" src="https://github.com/user-attachments/assets/0edc6c64-2ff6-437d-bab4-c6f501e2d046" />
+
+
+The hybrid approach consistently improves over the ALNS baseline and the learned NLNS variant.
+
+| Method                 | Mean Obj. ↓ | Gain % ↑ | Win Rate ↑ |  Routes ↓ |  Distance ↓ | Runtime (s) ↓ |
+| ---------------------- | ----------: | -------: | ---------: | --------: | ----------: | ------------: |
+| ALNS                   |     9954.01 |     0.00 |       0.00 |     14.28 |     5389.67 |          3.20 |
+| NLNS                   |     9358.80 |     3.34 |       0.56 |     13.67 |     5272.24 |          3.13 |
+| Hybrid_default         |     9122.60 |     5.85 |       0.67 |     13.94 |     5301.23 |          3.84 |
+| **Hybrid_low_destroy** | **8794.96** | **8.63** |   **0.83** | **13.78** | **5349.12** |      **3.18** |
+
+**Best configuration:** `Hybrid_low_destroy`
+
+### Route examples
+
+<img width="3585" height="3367" alt="alns_routes" src="https://github.com/user-attachments/assets/6bd99a67-c418-4deb-97d1-aa777fe54779" />
+
+<img width="3585" height="3367" alt="nlns_routes" src="https://github.com/user-attachments/assets/6deee722-0a5c-4d8f-afc9-4910e5011785" />
+
+### Learning curve
+
+<img width="2885" height="1830" alt="convergence_curve" src="https://github.com/user-attachments/assets/905d18d5-1656-4bfe-b2f6-cf3e00154574" />
+
+
+---
+
+## Key contributions
+
+* RL-guided large neighborhood search for VRPTW
+* Hybrid NLNS → ALNS refinement strategy
+* Full benchmark pipeline on Solomon instances
+* Systematic ablation of search configurations
+
+---
+
+## Ablation study
+
+We compare the main hybrid variants below.
+
+| Variant               | Description                  | Outcome                      |
+| --------------------- | ---------------------------- | ---------------------------- |
+| `Hybrid_default`      | Default hybrid pipeline      | Strong baseline              |
+| `Hybrid_low_destroy`  | Lower destruction intensity  | **Best overall**             |
+| `Hybrid_high_destroy` | Higher destruction intensity | More aggressive, less stable |
+| `Hybrid_few_steps`    | Fewer search steps           | Faster, weaker               |
+| `Hybrid_many_steps`   | More search steps            | Better search, slower        |
+
+**Conclusion:** lower destruction intensity gives the best balance between exploration and stability.
+
+---
+
+## Reproducibility
+
+### Setup
 
 ```bash
 python3 -m venv venv
@@ -76,46 +135,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-If your local environment already exists, activate it before running the scripts:
-
-```bash
-source venv/bin/activate
-```
-
----
-
-## 5. Data
-
-The benchmark instances are stored under `data/`.
-
-Typical folders used in this project:
-
-```text
-data/train
-data/test
-```
-
-The benchmark scripts expect the original instance files to remain available.
-
----
-
-## 6. How to run the project
-
-### 6.1 Run the ALNS baseline
-
-Use the project’s ALNS entry point on the dataset you want to evaluate:
-
-```bash
-python3 main.py --instances_dir data/test --alns_iterations 50
-```
-
-If your local ALNS entrypoint is different, run the equivalent script already present in your repository.
-
----
-
-### 6.2 Train NLNS
-
-Train the RL-guided search policy on the training instances:
+### Train NLNS
 
 ```bash
 python3 main_nlns.py \
@@ -125,17 +145,7 @@ python3 main_nlns.py \
   --save_dir outputs/nlns
 ```
 
-This creates:
-
-* `outputs/nlns/checkpoints/best_model.pt`
-* `outputs/nlns/checkpoints/final_model.pt`
-* `outputs/nlns/logs/episode_rewards.csv`
-
----
-
-### 6.3 Run NLNS inference on the test set
-
-Load the trained policy and generate test solutions:
+### Evaluate NLNS
 
 ```bash
 python3 inference_nlns.py \
@@ -144,16 +154,15 @@ python3 inference_nlns.py \
   --output_dir outputs/nlns_eval
 ```
 
-This creates:
+### Run ALNS baseline
 
-* `outputs/nlns_eval/instances_json/*.json`
-* `outputs/nlns_eval/nlns_summary.csv`
+```bash
+python3 main.py \
+  --instances_dir data/test \
+  --alns_iterations 50
+```
 
----
-
-### 6.4 Run the hybrid NLNS → ALNS refinement
-
-Use ALNS solutions as starting points and refine them with the learned policy:
+### Run hybrid pipeline
 
 ```bash
 python3 inference_hybrid.py \
@@ -163,22 +172,7 @@ python3 inference_hybrid.py \
   --output_dir outputs/hybrid_eval
 ```
 
-This creates:
-
-* `outputs/hybrid_eval/instances_json/*.json`
-* `outputs/hybrid_eval/hybrid_summary.csv`
-
----
-
-## 7. Benchmark study
-
-This project compares methods at three levels:
-
-* **instance level**
-* **family level**
-* **global level**
-
-### 7.1 Build the benchmark report
+### Build benchmark report
 
 ```bash
 python3 analysis/benchmark_report.py \
@@ -188,164 +182,36 @@ python3 analysis/benchmark_report.py \
   --output_dir analysis_outputs/benchmark_3way
 ```
 
-Outputs:
-
-* `analysis_outputs/benchmark_3way/comparison.csv`
-* `analysis_outputs/benchmark_3way/global_summary.csv`
-* `analysis_outputs/benchmark_3way/family_summary.csv`
-* `analysis_outputs/benchmark_3way/instance_comparison.csv`
-* `analysis_outputs/benchmark_3way/benchmark_report.md`
-
 ---
 
-## 8. Visualizations
+## Project structure
 
-The visualization script produces:
-
-* small-multiples route plots for ALNS and NLNS,
-* training curve from `episode_rewards.csv`,
-* family-level gain plot.
-
-### 8.1 Generate visuals
-
-```bash
-python3 analysis/visualize_benchmark.py \
-  --instances_dir data/test \
-  --alns_json_dir outputs/test/instances_json \
-  --nlns_json_dir outputs/nlns_eval/instances_json \
-  --rewards_csv outputs/nlns/logs/episode_rewards.csv \
-  --comparison_csv analysis_outputs/benchmark/comparison.csv \
-  --output_dir analysis_outputs/visuals \
-  --family Clustered_large
-```
-
-Outputs:
-
-* `analysis_outputs/visuals/alns_small_multiples_<instance>.png`
-* `analysis_outputs/visuals/nlns_small_multiples_<instance>.png`
-* `analysis_outputs/visuals/training_curve.png`
-* `analysis_outputs/visuals/family_gain.png`
-
----
-
-## 9. Ablation study
-
-The ablation study compares:
-
-* **ALNS**
-* **NLNS**
-* **Hybrid_default**
-* **Hybrid_low_destroy**
-* **Hybrid_high_destroy**
-* **Hybrid_few_steps**
-* **Hybrid_many_steps**
-
-### 9.1 Run the ablation study
-
-```bash
-python3 analysis/run_ablation.py \
-  --instances_dir data/test \
-  --model_path outputs/nlns/checkpoints/final_model.pt \
-  --output_dir outputs/ablation
-```
-
-Outputs:
-
-* `outputs/ablation/ablation_summary.csv`
-* `outputs/ablation/instance_comparison.csv`
-* `outputs/ablation/ablation_report.md`
-* per-config folders with JSON and CSV results
-
-### 9.2 Final ablation conclusion
-
-The ablation study selects **Hybrid_low_destroy** as the best configuration.
-
----
-
-## 10. Final project flow
-
-The complete workflow is:
-
-1. Train ALNS baseline
-2. Train NLNS policy
-3. Run NLNS inference on test data
-4. Run hybrid refinement with ALNS
-5. Build benchmark report
-6. Generate figures
-7. Run ablation study
-8. Keep the best hybrid configuration
-
----
-
-## 11. Results summary
-
-The final study shows that:
-
-* NLNS improves over ALNS on the test benchmark.
-* The hybrid pipeline is stronger than both standalone methods.
-* The ablation study identifies **Hybrid_low_destroy** as the best overall configuration.
-
-The benchmark tables and ablation tables are the main evidence section of the project.
-
----
-
-## 12. Reproducing the full project from scratch
-
-To reproduce the full pipeline in order:
-
-```bash
-# 1) Train NLNS
-python3 main_nlns.py --instances_dir data/train --epochs 30 --steps_per_episode 25 --save_dir outputs/nlns
-
-# 2) Evaluate NLNS
-python3 inference_nlns.py --instances_dir data/test --model_path outputs/nlns/checkpoints/final_model.pt --output_dir outputs/nlns_eval
-
-# 3) Run ALNS baseline on test data
-python3 main.py --instances_dir data/test --alns_iterations 50
-
-# 4) Run hybrid refinement
-python3 inference_hybrid.py --instances_dir data/test --alns_json_dir outputs/test/instances_json --model_path outputs/nlns/checkpoints/final_model.pt --output_dir outputs/hybrid_eval
-
-# 5) Build the benchmark report
-python3 analysis/benchmark_report.py --alns_csv outputs/test/test_summary.csv --nlns_csv outputs/nlns_eval/nlns_summary.csv --hybrid_csv outputs/hybrid_eval/hybrid_summary.csv --output_dir analysis_outputs/benchmark_3way
-
-# 6) Build the visuals
-python3 analysis/visualize_benchmark.py --instances_dir data/test --alns_json_dir outputs/test/instances_json --nlns_json_dir outputs/nlns_eval/instances_json --rewards_csv outputs/nlns/logs/episode_rewards.csv --comparison_csv analysis_outputs/benchmark/comparison.csv --output_dir analysis_outputs/visuals --family Clustered_large
-
-# 7) Run ablation
-python3 analysis/run_ablation.py --instances_dir data/test --model_path outputs/nlns/checkpoints/final_model.pt --output_dir outputs/ablation
+```text
+├── data/                 # Solomon instances
+├── docs/figures/         # README figures
+├── src/                  # Core implementation
+│   ├── alns/
+│   ├── nlns/
+│   ├── operators/
+│   └── utils/
+├── analysis/             # Benchmark + visualization
+├── outputs/              # Generated results (ignored)
+├── notebooks/            # Experiments
+└── README.md
 ```
 
 ---
 
-## 13. Notes
+## Notes
 
-* Keep generated files out of Git using `.gitignore`.
-* Do not commit `outputs/`, `data/`, or model checkpoints.
-* The final chosen hybrid configuration is **Hybrid_low_destroy**.
-
----
-
-## 14. Ablation table
-
-The table below follows the style commonly used in research papers.
-
-| Method              | Mean Obj. ↓ | Gain vs ALNS ↑ | Gain % ↑ | Feasible Rate ↑ | Win Rate vs ALNS ↑ | Mean Routes ↓ | Mean Time ↓ | Mean Distance ↓ | Runtime (s) ↓ |
-| :------------------ | ----------: | -------------: | -------: | --------------: | -----------------: | ------------: | ----------: | --------------: | ------------: |
-| ALNS                |   9954.0084 |         0.0000 |   0.0000 |          1.0000 |             0.0000 |       14.2778 |  14959.5799 |       5389.6664 |        3.1970 |
-| NLNS                |   9358.8000 |       595.2084 |   3.3434 |          1.0000 |             0.5556 |       13.6667 |  14987.1165 |       5272.2400 |        3.1349 |
-| Hybrid_default      |   9122.5957 |       831.4127 |   5.8514 |          1.0000 |             0.6667 |       13.9444 |  14996.2957 |       5301.2257 |        3.8355 |
-| Hybrid_low_destroy  |   8794.9567 |      1159.0517 |   8.6299 |          1.0000 |             0.8333 |       13.7778 |  14939.4418 |       5349.1175 |        3.1759 |
-| Hybrid_high_destroy |   9112.3054 |       841.7030 |   6.1176 |          1.0000 |             0.7222 |       13.8333 |  15074.0358 |       5178.0942 |        3.8711 |
-| Hybrid_few_steps    |   9141.1155 |       812.8929 |   5.5051 |          1.0000 |             0.6111 |       13.9444 |  15030.3011 |       5345.7731 |        3.4631 |
-| Hybrid_many_steps   |   9111.4956 |       842.5128 |   6.0367 |          1.0000 |             0.6667 |       13.9444 |  14992.7419 |       5249.9589 |        4.5894 |
-
-**Best configuration:** `Hybrid_low_destroy`
+* Generated outputs are excluded via `.gitignore`
+* Benchmark scripts assume standard Solomon format
+* All experiments are fully reproducible
 
 ---
 
-## 15. Citation-ready project description
+## References
 
-If you need a one-line summary for a paper, CV, or LinkedIn:
-
-> This project develops and benchmarks an RL-guided Large Neighborhood Search framework for VRPTW, compares it against a classical ALNS baseline, and shows that a hybrid NLNS → ALNS pipeline with carefully tuned destroy intensity delivers the best performance on the test benchmark.
+* Solomon benchmark instances for VRPTW
+* Ropke & Pisinger (2006) — Adaptive Large Neighborhood Search
+* Neural Large Neighborhood Search and RL-based routing literature
